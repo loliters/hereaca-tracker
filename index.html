@@ -1,0 +1,2354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Rastreo Avanzado - HereACA</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --primary-dark: #2980b9;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --error-color: #e74c3c;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+            --sidebar-width: 350px;
+            --header-height: 70px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.1);
+            --gradient: linear-gradient(135deg, #3498db, #8e44ad);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+
+        /* Header Superior */
+        #header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
+            box-shadow: var(--shadow);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .menu-toggle {
+            background: var(--gradient);
+            border: none;
+            font-size: 20px;
+            color: white;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .menu-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 22px;
+            color: var(--dark-color);
+        }
+
+        .logo-icon {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            background: rgba(248, 249, 250, 0.8);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+            box-shadow: 0 0 10px var(--success-color);
+        }
+
+        .status-dot.offline {
+            background-color: var(--error-color);
+            box-shadow: 0 0 10px var(--error-color);
+        }
+
+        .status-dot.connecting {
+            background-color: var(--warning-color);
+            box-shadow: 0 0 10px var(--warning-color);
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Sidebar / Menú Hamburguesa */
+        #sidebar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+            z-index: 999;
+            box-shadow: var(--shadow);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid rgba(0,0,0,0.05);
+        }
+
+        #sidebar.active {
+            transform: translateX(0);
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .section-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--dark-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 14px 16px;
+            border: none;
+            border-radius: 10px;
+            background: white;
+            color: var(--dark-color);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn.active {
+            background: var(--gradient);
+            color: white;
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn i {
+            font-size: 18px;
+            width: 20px;
+        }
+
+        /* Panel de Información del Usuario */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .info-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+
+        .info-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .info-value {
+            font-weight: 700;
+            font-size: 18px;
+            margin: 8px 0;
+            color: var(--dark-color);
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .battery-level {
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: var(--success-color);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .battery-fill.warning {
+            background: var(--warning-color);
+        }
+
+        .battery-fill.danger {
+            background: var(--error-color);
+        }
+
+        /* Panel de Historial */
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 12px;
+            border-left: 3px solid var(--primary-color);
+            background: white;
+            margin-bottom: 8px;
+            border-radius: 0 8px 8px 0;
+            font-size: 13px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+
+        .history-item:hover {
+            transform: translateX(3px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        }
+
+        .history-time {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .history-coords {
+            font-family: monospace;
+            color: var(--dark-color);
+        }
+
+        /* Controles Flotantes */
+        .floating-controls {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 998;
+        }
+
+        .floating-btn {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: var(--dark-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .floating-btn:hover {
+            transform: scale(1.1);
+            background: var(--gradient);
+            color: white;
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        /* Panel de Debug */
+        #debug-panel {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
+            z-index: 997;
+            box-shadow: var(--shadow);
+            max-width: 400px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            display: none;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .debug-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .debug-entry {
+            margin-bottom: 5px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .debug-time {
+            color: #888;
+            margin-right: 8px;
+        }
+
+        /* Modo Noche */
+        .night-mode {
+            filter: invert(1) hue-rotate(180deg);
+        }
+
+        /* Modal para crear geocercas */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .modal-title {
+            font-weight: 600;
+            font-size: 20px;
+            color: var(--dark-color);
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: #666;
+            transition: color 0.2s ease;
+        }
+
+        .close-modal:hover {
+            color: var(--error-color);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.3s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        /* Notificaciones */
+        .notification-container {
+            position: fixed;
+            top: 90px;
+            right: 25px;
+            z-index: 2000;
+            max-width: 350px;
+        }
+
+        .notification {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            border-left: 4px solid var(--primary-color);
+            animation: slideInRight 0.3s ease;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .notification.warning {
+            border-left-color: var(--warning-color);
+        }
+
+        .notification.error {
+            border-left-color: var(--error-color);
+        }
+
+        .notification.success {
+            border-left-color: var(--success-color);
+        }
+
+        .notification-icon {
+            font-size: 20px;
+            margin-top: 2px;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--dark-color);
+        }
+
+        .notification-message {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            font-size: 16px;
+            transition: color 0.2s ease;
+        }
+
+        .notification-close:hover {
+            color: var(--error-color);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Modal para compartir */
+        .share-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .share-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .share-option:hover {
+            background: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .share-option i {
+            font-size: 22px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .share-option.whatsapp i {
+            color: #25D366;
+        }
+
+        .share-option.telegram i {
+            color: #0088cc;
+        }
+
+        .share-option.link i {
+            color: var(--primary-color);
+        }
+
+        .share-option.qr i {
+            color: #333;
+        }
+
+        .share-link-container {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .share-link {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .copy-btn {
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .qr-code-container {
+            text-align: center;
+            margin: 15px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+        }
+
+        #qr-code {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Controles de dibujo de geocercas */
+        .drawing-controls {
+            position: fixed;
+            top: 90px;
+            left: 25px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            z-index: 998;
+            display: none;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .drawing-controls.active {
+            display: block;
+        }
+
+        .drawing-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        /* Panel de Rutas */
+        .routes-panel {
+            position: fixed;
+            top: 90px;
+            left: 25px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            z-index: 998;
+            display: none;
+            border: 1px solid rgba(0,0,0,0.05);
+            max-width: 300px;
+        }
+
+        .routes-panel.active {
+            display: block;
+        }
+
+        .route-item {
+            padding: 12px;
+            border-left: 3px solid var(--primary-color);
+            background: #f8f9fa;
+            margin-bottom: 8px;
+            border-radius: 0 8px 8px 0;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .route-item:hover {
+            background: #e9ecef;
+            transform: translateX(3px);
+        }
+
+        .route-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            :root {
+                --sidebar-width: 100%;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            #debug-panel {
+                max-width: calc(100% - 50px);
+            }
+
+            .notification-container {
+                right: 15px;
+                left: 15px;
+                max-width: none;
+            }
+
+            .drawing-controls, .routes-panel {
+                left: 15px;
+                right: 15px;
+                max-width: none;
+            }
+        }
+
+        /* Animaciones */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Estilos para las rutas en el mapa */
+        .route-popup {
+            padding: 10px;
+            min-width: 200px;
+        }
+
+        .route-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .route-stat {
+            text-align: center;
+        }
+
+        .route-stat-value {
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--primary-color);
+        }
+
+        .route-stat-label {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<!-- Header Superior -->
+<div id="header">
+    <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="logo">
+            <i class="fas fa-map-marker-alt logo-icon"></i>
+            <span>HereACA Tracker</span>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="status-indicator">
+            <div class="status-dot connecting" id="status-dot"></div>
+            <span id="status-text">Conectando...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Sidebar / Menú Hamburguesa -->
+<div id="sidebar">
+    <!-- Sección de Información del Usuario -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-user-circle"></i>
+            Información del Usuario
+        </div>
+        <div class="info-grid">
+            <div class="info-card">
+                <i class="fas fa-user" style="color: #3498db;"></i>
+                <div class="info-value" id="user-id">-</div>
+                <div class="info-label">Usuario</div>
+            </div>
+
+            <div class="info-card">
+                <i class="fas fa-mobile-alt" style="color: #9b59b6;"></i>
+                <div class="info-value" id="device-info">-</div>
+                <div class="info-label">Dispositivo</div>
+            </div>
+
+            <div class="info-card">
+                <i class="fas fa-battery-half" style="color: #2ecc71;"></i>
+                <div class="info-value" id="battery-level">-</div>
+                <div class="info-label">Batería</div>
+                <div class="battery-level">
+                    <div class="battery-fill" id="battery-fill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <i class="fas fa-bullseye" style="color: #e74c3c;"></i>
+                <div class="info-value" id="accuracy">-</div>
+                <div class="info-label">Precisión</div>
+            </div>
+        </div>
+        <div style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
+            <i class="fas fa-clock"></i> Actualizado: <span id="last-update">-</span>
+        </div>
+    </div>
+
+    <!-- Sección de Compartir Ubicación -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-share-alt"></i>
+            Compartir Mi Ubicación
+        </div>
+        <div class="btn-group">
+            <button class="btn" id="btn-share-location">
+                <i class="fas fa-share"></i>
+                <div>
+                    <div>Compartir Enlace</div>
+                    <small>Generar enlace de rastreo</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-generate-qr">
+                <i class="fas fa-qrcode"></i>
+                <div>
+                    <div>Código QR</div>
+                    <small>Para compartir fácilmente</small>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sección de Modos de Visualización -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-map-marked-alt"></i>
+            Modo de Visualización
+        </div>
+        <div class="btn-group">
+            <button class="btn active" id="btn-live">
+                <i class="fas fa-circle"></i>
+                <div>
+                    <div>Tiempo Real</div>
+                    <small>Seguimiento en vivo</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-route">
+                <i class="fas fa-route"></i>
+                <div>
+                    <div>Ver Ruta</div>
+                    <small>Historial de recorrido</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-history">
+                <i class="fas fa-history"></i>
+                <div>
+                    <div>Historial</div>
+                    <small>Ubicaciones anteriores</small>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sección de Geocercas -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-draw-polygon"></i>
+            Geocercas
+        </div>
+        <div class="btn-group">
+            <button class="btn" id="btn-add-geofence">
+                <i class="fas fa-plus-circle"></i>
+                <div>
+                    <div>Crear Geocerca</div>
+                    <small>Dibujar polígono en el mapa</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-clear-geofences">
+                <i class="fas fa-trash"></i>
+                <div>
+                    <div>Limpiar Geocercas</div>
+                    <small>Eliminar todas</small>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sección de Rutas -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-road"></i>
+            Gestión de Rutas
+        </div>
+        <div class="btn-group">
+            <button class="btn" id="btn-start-recording">
+                <i class="fas fa-record-vinyl"></i>
+                <div>
+                    <div>Iniciar Grabación</div>
+                    <small>Empezar a grabar ruta</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-stop-recording">
+                <i class="fas fa-stop"></i>
+                <div>
+                    <div>Detener Grabación</div>
+                    <small>Parar grabación de ruta</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-view-routes">
+                <i class="fas fa-list"></i>
+                <div>
+                    <div>Ver Rutas Guardadas</div>
+                    <small>Mostrar rutas anteriores</small>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sección de Historial -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-list-alt"></i>
+            Historial Reciente
+        </div>
+        <div class="history-list" id="history-list">
+            <!-- Los elementos de historial se insertarán aquí -->
+        </div>
+        <button class="btn" id="btn-clear-history" style="margin-top: 10px;">
+            <i class="fas fa-trash"></i> Limpiar Historial
+        </button>
+    </div>
+
+    <!-- Sección de Configuración -->
+    <div class="sidebar-section">
+        <div class="section-title">
+            <i class="fas fa-cog"></i>
+            Configuración
+        </div>
+        <div class="btn-group">
+            <button class="btn" id="btn-night-mode">
+                <i class="fas fa-moon"></i>
+                <div>
+                    <div>Modo Noche</div>
+                    <small>Alternar tema oscuro</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-fullscreen">
+                <i class="fas fa-expand"></i>
+                <div>
+                    <div>Pantalla Completa</div>
+                    <small>Maximizar visualización</small>
+                </div>
+            </button>
+            <button class="btn" id="btn-debug">
+                <i class="fas fa-terminal"></i>
+                <div>
+                    <div>Consola Debug</div>
+                    <small>Mostrar/Ocultar logs</small>
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Mapa -->
+<div id="map"></div>
+
+<!-- Controles de dibujo de geocercas -->
+<div class="drawing-controls" id="drawing-controls">
+    <div style="font-weight: 600; margin-bottom: 10px; color: var(--dark-color);">Dibujando Geocerca</div>
+    <div class="btn-group">
+        <button class="btn" id="btn-finish-geofence">
+            <i class="fas fa-check"></i>
+            <div>
+                <div>Finalizar Geocerca</div>
+                <small>Guardar polígono</small>
+            </div>
+        </button>
+        <button class="btn" id="btn-cancel-geofence">
+            <i class="fas fa-times"></i>
+            <div>
+                <div>Cancelar</div>
+                <small>Descartar dibujo</small>
+            </div>
+        </button>
+    </div>
+    <div class="drawing-info">
+        Haz clic en el mapa para añadir puntos al polígono
+    </div>
+</div>
+
+<!-- Panel de Rutas -->
+<div class="routes-panel" id="routes-panel">
+    <div style="font-weight: 600; margin-bottom: 15px; color: var(--dark-color);">Rutas Guardadas</div>
+    <div id="routes-list">
+        <!-- Las rutas se insertarán aquí -->
+    </div>
+    <button class="btn" id="btn-close-routes" style="margin-top: 15px; width: 100%;">
+        <i class="fas fa-times"></i> Cerrar
+    </button>
+</div>
+
+<!-- Controles Flotantes -->
+<div class="floating-controls">
+    <button class="floating-btn" id="btn-center-map" title="Centrar en ubicación">
+        <i class="fas fa-crosshairs"></i>
+    </button>
+    <button class="floating-btn" id="btn-zoom-in" title="Acercar">
+        <i class="fas fa-plus"></i>
+    </button>
+    <button class="floating-btn" id="btn-zoom-out" title="Alejar">
+        <i class="fas fa-minus"></i>
+    </button>
+</div>
+
+<!-- Panel de Debug -->
+<div id="debug-panel">
+    <div class="debug-header">
+        <div>Consola de Depuración</div>
+        <button class="btn" id="btn-clear-logs" style="padding: 5px 10px; font-size: 12px;">
+            <i class="fas fa-trash"></i> Limpiar
+        </button>
+    </div>
+    <div id="debug-logs"></div>
+</div>
+
+<!-- Modal para crear geocercas -->
+<div id="geofence-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Crear Geocerca</div>
+            <button class="close-modal" id="close-geofence-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="geofence-name">Nombre de la geocerca</label>
+            <input type="text" id="geofence-name" class="form-input" placeholder="Mi geocerca" value="Mi geocerca">
+        </div>
+        <div class="form-actions">
+            <button class="btn-secondary" id="cancel-geofence">Cancelar</button>
+            <button class="btn-primary" id="save-geofence">Guardar Geocerca</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para compartir ubicación -->
+<div id="share-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Compartir Mi Ubicación</div>
+            <button class="close-modal" id="close-share-modal">&times;</button>
+        </div>
+
+        <div class="share-options">
+            <div class="share-option whatsapp" id="share-whatsapp">
+                <i class="fab fa-whatsapp"></i>
+                <div>
+                    <div>Compartir por WhatsApp</div>
+                    <small>Enviar enlace por WhatsApp</small>
+                </div>
+            </div>
+
+            <div class="share-option telegram" id="share-telegram">
+                <i class="fab fa-telegram"></i>
+                <div>
+                    <div>Compartir por Telegram</div>
+                    <small>Enviar enlace por Telegram</small>
+                </div>
+            </div>
+
+            <div class="share-option link" id="share-link">
+                <i class="fas fa-link"></i>
+                <div>
+                    <div>Copiar Enlace</div>
+                    <small>Copiar URL al portapapeles</small>
+                </div>
+            </div>
+
+            <div class="share-option qr" id="share-qr">
+                <i class="fas fa-qrcode"></i>
+                <div>
+                    <div>Generar Código QR</div>
+                    <small>Mostrar código QR para escanear</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="share-link-container" id="link-container" style="display: none;">
+            <input type="text" class="share-link" id="share-url" readonly>
+            <button class="copy-btn" id="copy-link">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+
+        <div class="qr-code-container" id="qr-container" style="display: none;">
+            <canvas id="qr-code"></canvas>
+            <p style="margin-top: 10px; font-size: 14px;">Escanea este código para ver mi ubicación en tiempo real</p>
+        </div>
+    </div>
+</div>
+
+<!-- Contenedor de notificaciones -->
+<div class="notification-container" id="notification-container"></div>
+
+<script>
+    // ========== CONFIGURACIÓN ==========
+    const firebaseConfig = {
+        apiKey: "AIzaSyCZz9O5ti5gylczX58X4Ni-WxsliV3m54Y",
+        authDomain: "hereaca.firebaseapp.com",
+        projectId: "hereaca",
+        storageBucket: "hereaca.firebasestorage.app",
+        messagingSenderId: "554391595579",
+        appId: "1:554391595579:android:aa94be82ce48a0b39f0a1e"
+    };
+
+    // ========== INICIALIZACIÓN ==========
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY2VjaWxpYXRhcmlmYTAwIiwiYSI6ImNtZnU2NHp2ZTExdTYyanBvNHVrc2hwcTMifQ.tZj5j0FWDcRHNkzYU-t0SQ';
+
+    let map;
+    let marker = null;
+    let isFirstLoad = true;
+    let currentMode = 'live';
+    let routeCoordinates = [];
+    let geofences = [];
+    let locationHistory = [];
+    let isNightMode = false;
+    let isFullscreen = false;
+    let isSidebarOpen = false;
+    let locationBuffer = [];
+    const LOCATION_BUFFER_SIZE = 5;
+    let shareUrl = '';
+    let currentUserId = '';
+
+    // Variables para el dibujo de geocercas
+    let isDrawingGeofence = false;
+    let currentGeofencePoints = [];
+    let geofenceMarkers = [];
+    let geofenceLines = [];
+
+    // Variables para el sistema de rutas
+    let isRecordingRoute = false;
+    let recordedRoutes = [];
+    let currentRoute = {
+        id: null,
+        name: '',
+        points: [],
+        startTime: null,
+        endTime: null,
+        distance: 0
+    };
+
+    // ========== FUNCIONES DE NOTIFICACIÓN ==========
+    function showNotification(title, message, type = 'info') {
+        const container = document.getElementById('notification-container');
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+
+        let icon = 'info-circle';
+        if (type === 'warning') icon = 'exclamation-triangle';
+        if (type === 'error') icon = 'exclamation-circle';
+        if (type === 'success') icon = 'check-circle';
+
+        notification.innerHTML = `
+            <div class="notification-icon">
+                <i class="fas fa-${icon}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            </div>
+            <button class="notification-close">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        container.appendChild(notification);
+
+        // Auto-remover después de 5 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }
+        }, 5000);
+
+        // Cerrar manualmente
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.style.animation = 'slideInRight 0.3s ease reverse';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        });
+    }
+
+    // ========== FUNCIONES DE DEBUG ==========
+    function addDebugLog(message, type = 'info') {
+        const logsDiv = document.getElementById('debug-logs');
+        const logEntry = document.createElement('div');
+        logEntry.className = 'debug-entry';
+
+        const time = new Date().toLocaleTimeString();
+        logEntry.innerHTML = `<span class="debug-time">[${time}]</span> ${message}`;
+
+        if (type === 'error') {
+            logEntry.style.color = 'var(--error-color)';
+        } else if (type === 'success') {
+            logEntry.style.color = 'var(--success-color)';
+        } else if (type === 'warning') {
+            logEntry.style.color = 'var(--warning-color)';
+        }
+
+        logsDiv.appendChild(logEntry);
+        logsDiv.scrollTop = logsDiv.scrollHeight;
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    function updateStatus(status, isOnline = true) {
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        if (isOnline) {
+            statusDot.className = 'status-dot';
+            statusText.textContent = status;
+        } else {
+            statusDot.className = 'status-dot offline';
+            statusText.textContent = status;
+        }
+    }
+
+    // ========== MANEJO DEL SIDEBAR ==========
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const map = document.getElementById('map');
+
+        isSidebarOpen = !isSidebarOpen;
+        sidebar.classList.toggle('active', isSidebarOpen);
+
+        if (isSidebarOpen) {
+            map.style.marginLeft = 'var(--sidebar-width)';
+        } else {
+            map.style.marginLeft = '0';
+        }
+    }
+
+    // ========== FUNCIONES PARA COMPARTIR ==========
+    function generateShareUrl() {
+        // Crear un ID único para este dispositivo
+        if (!currentUserId) {
+            // Generar un ID único o usar uno existente
+            currentUserId = 'user_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('trackerUserId', currentUserId);
+        }
+
+        // Crear URL con parámetro de usuario
+        const baseUrl = window.location.href.split('?')[0];
+        shareUrl = `${baseUrl}?track=${currentUserId}`;
+
+        // Actualizar el campo de URL en el modal
+        const shareUrlInput = document.getElementById('share-url');
+        if (shareUrlInput) {
+            shareUrlInput.value = shareUrl;
+        }
+
+        return shareUrl;
+    }
+
+    function showShareModal() {
+        generateShareUrl();
+        const modal = document.getElementById('share-modal');
+        modal.style.display = 'flex';
+
+        // Ocultar contenedores adicionales
+        document.getElementById('link-container').style.display = 'none';
+        document.getElementById('qr-container').style.display = 'none';
+    }
+
+    function hideShareModal() {
+        const modal = document.getElementById('share-modal');
+        modal.style.display = 'none';
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Enlace copiado', 'El enlace se ha copiado al portapapeles', 'success');
+        }).catch(err => {
+            console.error('Error al copiar: ', err);
+            // Fallback para navegadores antiguos
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Enlace copiado', 'El enlace se ha copiado al portapapeles', 'success');
+        });
+    }
+
+    function shareOnWhatsApp() {
+        const message = `¡Hola! Puedes ver mi ubicación en tiempo real aquí: ${shareUrl}`;
+        const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    }
+
+    function shareOnTelegram() {
+        const message = `¡Hola! Puedes ver mi ubicación en tiempo real aquí: ${shareUrl}`;
+        const url = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    }
+
+    function generateQRCode() {
+        const canvas = document.getElementById('qr-code');
+        const container = document.getElementById('qr-container');
+
+        // Mostrar contenedor QR
+        document.getElementById('link-container').style.display = 'none';
+        container.style.display = 'block';
+
+        // Limpiar canvas
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Generar QR code
+        QRCode.toCanvas(canvas, shareUrl, {
+            width: 200,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        }, function(error) {
+            if (error) {
+                console.error('Error generando QR:', error);
+                // Fallback simple si hay error
+                ctx.fillStyle = '#000';
+                ctx.fillRect(50, 50, 100, 100);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(70, 70, 60, 60);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(90, 90, 20, 20);
+
+                ctx.fillStyle = '#000';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Escanea para ver mi ubicación', 100, 180);
+            }
+        });
+    }
+
+    // ========== FIRESTORE LISTENER ==========
+    function initializeFirestoreListener() {
+        updateStatus('Conectando...', false);
+        addDebugLog('Iniciando listener de Firestore...', 'info');
+
+        db.collection("ubicaciones")
+            .onSnapshot({
+                next: (snapshot) => {
+                    addDebugLog(`Datos recibidos: ${snapshot.size} documentos`, 'success');
+                    updateStatus('Conectado', true);
+
+                    let changesDetected = false;
+
+                    snapshot.docChanges().forEach((change) => {
+                        const docId = change.doc.id;
+                        const data = change.doc.data();
+
+                        addDebugLog(`Cambio: ${change.type} - Documento: ${docId}`, 'success');
+
+                        if (data.latitud !== undefined && data.longitud !== undefined) {
+                            addDebugLog(`Coordenadas válidas: ${data.latitud}, ${data.longitud}`, 'success');
+
+                            // Guardar ID de usuario para compartir
+                            if (data.idUsuario && !currentUserId) {
+                                currentUserId = data.idUsuario;
+                                generateShareUrl();
+                            }
+
+                            processLocationUpdate(data.latitud, data.longitud, data);
+                            changesDetected = true;
+                        } else {
+                            addDebugLog('Datos incompletos en documento', 'warning');
+                        }
+                    });
+
+                    if (!changesDetected && snapshot.size > 0) {
+                        const latestDoc = snapshot.docs[snapshot.docs.length - 1];
+                        const data = latestDoc.data();
+                        if (data.latitud && data.longitud) {
+                            addDebugLog('Procesando última ubicación disponible', 'info');
+                            processLocationUpdate(data.latitud, data.longitud, data);
+                        }
+                    }
+                },
+                error: (error) => {
+                    addDebugLog(`Error Firestore: ${error.message}`, 'error');
+                    updateStatus('Error de conexión', false);
+                    setTimeout(initializeFirestoreListener, 5000);
+                }
+            });
+    }
+
+    // ========== PROCESAMIENTO DE UBICACIÓN ==========
+    function processLocationUpdate(lat, lng, data) {
+        addDebugLog(`Procesando ubicación: ${lat}, ${lng}`, 'success');
+
+        const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
+        const longitude = typeof lng === 'string' ? parseFloat(lng) : lng;
+
+        if (isNaN(latitude) || isNaN(longitude)) {
+            addDebugLog('Coordenadas no válidas', 'error');
+            return;
+        }
+
+        addToHistory(latitude, longitude, data);
+
+        if (currentMode === 'route') {
+            addToRoute(latitude, longitude);
+        }
+
+        // Si estamos grabando una ruta, añadir punto
+        if (isRecordingRoute) {
+            addPointToCurrentRoute(latitude, longitude);
+        }
+
+        updateMap(latitude, longitude, data);
+        updateUserInfo(data);
+        checkGeofences(latitude, longitude);
+    }
+
+    // ========== SISTEMA DE RUTAS ==========
+    function startRecordingRoute() {
+        if (isRecordingRoute) {
+            showNotification('Ya en grabación', 'Ya estás grabando una ruta', 'warning');
+            return;
+        }
+
+        isRecordingRoute = true;
+        currentRoute = {
+            id: 'route-' + Date.now(),
+            name: 'Ruta ' + new Date().toLocaleTimeString(),
+            points: [],
+            startTime: new Date(),
+            endTime: null,
+            distance: 0
+        };
+
+        addDebugLog('Iniciando grabación de ruta', 'success');
+        showNotification('Grabación iniciada', 'Se ha comenzado a grabar tu ruta', 'success');
+
+        // Actualizar interfaz
+        document.getElementById('btn-start-recording').classList.add('active');
+        document.getElementById('btn-stop-recording').classList.remove('disabled');
+    }
+
+    function stopRecordingRoute() {
+        if (!isRecordingRoute) {
+            showNotification('No hay grabación', 'No hay ninguna ruta en grabación', 'warning');
+            return;
+        }
+
+        isRecordingRoute = false;
+        currentRoute.endTime = new Date();
+
+        // Guardar ruta
+        recordedRoutes.push({...currentRoute});
+        saveRoutesToStorage();
+
+        addDebugLog(`Ruta guardada: ${currentRoute.points.length} puntos, ${currentRoute.distance.toFixed(2)} km`, 'success');
+        showNotification('Ruta guardada', `Se ha guardado tu ruta con ${currentRoute.points.length} puntos`, 'success');
+
+        // Actualizar interfaz
+        document.getElementById('btn-start-recording').classList.remove('active');
+        document.getElementById('btn-stop-recording').classList.add('disabled');
+
+        // Dibujar ruta en el mapa
+        drawRouteOnMap(currentRoute);
+    }
+
+    function addPointToCurrentRoute(lat, lng) {
+        if (!isRecordingRoute) return;
+
+        const point = {
+            lat: lat,
+            lng: lng,
+            timestamp: new Date()
+        };
+
+        // Calcular distancia si hay puntos anteriores
+        if (currentRoute.points.length > 0) {
+            const lastPoint = currentRoute.points[currentRoute.points.length - 1];
+            const distance = calculateDistance(lastPoint.lat, lastPoint.lng, lat, lng);
+            currentRoute.distance += distance;
+        }
+
+        currentRoute.points.push(point);
+        addDebugLog(`Punto añadido a ruta: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'info');
+    }
+
+    function viewSavedRoutes() {
+        loadRoutesFromStorage();
+        const routesPanel = document.getElementById('routes-panel');
+        routesPanel.classList.toggle('active');
+
+        const routesList = document.getElementById('routes-list');
+        routesList.innerHTML = '';
+
+        if (recordedRoutes.length === 0) {
+            routesList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No hay rutas guardadas</div>';
+            return;
+        }
+
+        recordedRoutes.forEach((route, index) => {
+            const routeItem = document.createElement('div');
+            routeItem.className = 'route-item';
+            routeItem.innerHTML = `
+                <div style="font-weight: 600;">${route.name}</div>
+                <div style="font-size: 11px; color: #666;">
+                    ${route.points.length} puntos · ${route.distance.toFixed(2)} km
+                </div>
+            `;
+
+            routeItem.addEventListener('click', () => {
+                // Remover activo de todos los items
+                document.querySelectorAll('.route-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                // Activar este item
+                routeItem.classList.add('active');
+                // Mostrar esta ruta en el mapa
+                showRouteOnMap(route);
+            });
+
+            routesList.appendChild(routeItem);
+        });
+    }
+
+    function showRouteOnMap(route) {
+        // Limpiar ruta anterior
+        if (map.getSource('saved-route')) {
+            map.removeLayer('saved-route');
+            map.removeSource('saved-route');
+        }
+
+        // Convertir puntos a coordenadas para Mapbox
+        const coordinates = route.points.map(point => [point.lng, point.lat]);
+
+        // Añadir fuente y capa para la ruta
+        map.addSource('saved-route', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': coordinates
+                }
+            }
+        });
+
+        map.addLayer({
+            'id': 'saved-route',
+            'type': 'line',
+            'source': 'saved-route',
+            'layout': {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            'paint': {
+                'line-color': '#e74c3c',
+                'line-width': 4,
+                'line-opacity': 0.8
+            }
+        });
+
+        // Añadir marcadores para inicio y fin
+        if (route.points.length > 0) {
+            // Marcador de inicio
+            new mapboxgl.Marker({ color: '#2ecc71' })
+                .setLngLat([route.points[0].lng, route.points[0].lat])
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div class="route-popup">
+                        <strong>Inicio de ruta</strong><br>
+                        ${route.name}<br>
+                        <div class="route-stats">
+                            <div class="route-stat">
+                                <div class="route-stat-value">${route.points.length}</div>
+                                <div class="route-stat-label">Puntos</div>
+                            </div>
+                            <div class="route-stat">
+                                <div class="route-stat-value">${route.distance.toFixed(2)}</div>
+                                <div class="route-stat-label">km</div>
+                            </div>
+                        </div>
+                    </div>
+                `))
+                .addTo(map);
+
+            // Marcador de fin
+            new mapboxgl.Marker({ color: '#e74c3c' })
+                .setLngLat([route.points[route.points.length - 1].lng, route.points[route.points.length - 1].lat])
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div class="route-popup">
+                        <strong>Fin de ruta</strong><br>
+                        ${route.name}<br>
+                        <div class="route-stats">
+                            <div class="route-stat">
+                                <div class="route-stat-value">${route.points.length}</div>
+                                <div class="route-stat-label">Puntos</div>
+                            </div>
+                            <div class="route-stat">
+                                <div class="route-stat-value">${route.distance.toFixed(2)}</div>
+                                <div class="route-stat-label">km</div>
+                            </div>
+                        </div>
+                    </div>
+                `))
+                .addTo(map);
+        }
+
+        // Ajustar vista para mostrar toda la ruta
+        if (coordinates.length > 0) {
+            const bounds = coordinates.reduce((bounds, coord) => {
+                return bounds.extend(coord);
+            }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+
+            map.fitBounds(bounds, {
+                padding: 50,
+                duration: 1000
+            });
+        }
+    }
+
+    function drawRouteOnMap(route) {
+        showRouteOnMap(route);
+    }
+
+    function saveRoutesToStorage() {
+        localStorage.setItem('recordedRoutes', JSON.stringify(recordedRoutes));
+    }
+
+    function loadRoutesFromStorage() {
+        const saved = localStorage.getItem('recordedRoutes');
+        if (saved) {
+            recordedRoutes = JSON.parse(saved);
+        }
+    }
+
+    // ========== GESTIÓN DE RUTAS EN TIEMPO REAL ==========
+    function addToRoute(lat, lng) {
+        routeCoordinates.push([lng, lat]);
+        drawRoute();
+    }
+
+    function drawRoute() {
+        if (map.getSource('route')) {
+            map.removeLayer('route');
+            map.removeSource('route');
+        }
+
+        if (routeCoordinates.length > 1) {
+            map.addSource('route', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': routeCoordinates
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'route',
+                'type': 'line',
+                'source': 'route',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#3887be',
+                    'line-width': 5,
+                    'line-opacity': 0.75
+                }
+            });
+        }
+    }
+
+    function clearRoute() {
+        routeCoordinates = [];
+        if (map.getSource('route')) {
+            map.removeLayer('route');
+            map.removeSource('route');
+        }
+    }
+
+    // ========== GESTIÓN DE HISTORIAL ==========
+    function addToHistory(lat, lng, data) {
+        const historyItem = {
+            lat: lat,
+            lng: lng,
+            timestamp: new Date(),
+            data: data
+        };
+
+        locationHistory.unshift(historyItem);
+
+        if (locationHistory.length > 50) {
+            locationHistory.pop();
+        }
+
+        updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = '';
+
+        locationHistory.slice(0, 10).forEach(item => {
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+
+            const time = item.timestamp.toLocaleTimeString();
+            const coords = `${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}`;
+
+            historyItem.innerHTML = `
+                <div class="history-time">${time}</div>
+                <div class="history-coords">${coords}</div>
+            `;
+
+            historyList.appendChild(historyItem);
+        });
+    }
+
+    function clearHistory() {
+        locationHistory = [];
+        updateHistoryDisplay();
+        addDebugLog('Historial limpiado', 'info');
+    }
+
+    // ========== GEOCERCAS IRREGULARES ==========
+    function startDrawingGeofence() {
+        if (!map) {
+            showNotification('Error', 'El mapa no está disponible', 'error');
+            return;
+        }
+
+        isDrawingGeofence = true;
+        currentGeofencePoints = [];
+        document.getElementById('drawing-controls').classList.add('active');
+
+        // Cambiar el cursor del mapa para indicar modo dibujo
+        map.getCanvas().style.cursor = 'crosshair';
+
+        // Añadir evento de clic al mapa para agregar puntos
+        map.on('click', addGeofencePoint);
+
+        addDebugLog('Modo dibujo de geocerca activado', 'info');
+        showNotification('Dibujando geocerca', 'Haz clic en el mapa para añadir puntos al polígono', 'info');
+    }
+
+    function addGeofencePoint(e) {
+        if (!isDrawingGeofence) return;
+
+        const point = [e.lngLat.lng, e.lngLat.lat];
+        currentGeofencePoints.push(point);
+
+        // Añadir marcador para el punto
+        const marker = new mapboxgl.Marker({
+            color: '#FF0000',
+            draggable: false
+        })
+        .setLngLat(point)
+        .addTo(map);
+
+        geofenceMarkers.push(marker);
+
+        // Dibujar líneas entre puntos
+        if (currentGeofencePoints.length > 1) {
+            drawGeofenceLines();
+        }
+
+        addDebugLog(`Punto añadido: ${point[1].toFixed(6)}, ${point[0].toFixed(6)}`, 'success');
+    }
+
+    function drawGeofenceLines() {
+        // Eliminar líneas anteriores
+        geofenceLines.forEach(line => line.remove());
+        geofenceLines = [];
+
+        // Dibujar líneas entre puntos consecutivos
+        for (let i = 0; i < currentGeofencePoints.length - 1; i++) {
+            const line = new mapboxgl.Marker({
+                element: createLineElement(currentGeofencePoints[i], currentGeofencePoints[i+1])
+            })
+            .setLngLat(currentGeofencePoints[i])
+            .addTo(map);
+
+            geofenceLines.push(line);
+        }
+    }
+
+    function createLineElement(start, end) {
+        const element = document.createElement('div');
+        element.style.width = '1px';
+        element.style.height = '1px';
+        element.style.backgroundColor = 'transparent';
+
+        // Calcular distancia y ángulo entre puntos
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+        // Crear línea usando CSS
+        const line = document.createElement('div');
+        line.style.position = 'absolute';
+        line.style.width = `${distance * 100000}px`; // Aproximación
+        line.style.height = '3px';
+        line.style.backgroundColor = '#FF0000';
+        line.style.transformOrigin = '0 0';
+        line.style.transform = `rotate(${angle}deg)`;
+
+        element.appendChild(line);
+        return element;
+    }
+
+    function finishGeofence() {
+        if (currentGeofencePoints.length < 3) {
+            showNotification('Error', 'Se necesitan al menos 3 puntos para crear un polígono', 'error');
+            return;
+        }
+
+        // Cerrar el polígono conectando el último punto con el primero
+        if (currentGeofencePoints.length > 2) {
+            const line = new mapboxgl.Marker({
+                element: createLineElement(
+                    currentGeofencePoints[currentGeofencePoints.length - 1],
+                    currentGeofencePoints[0]
+                )
+            })
+            .setLngLat(currentGeofencePoints[currentGeofencePoints.length - 1])
+            .addTo(map);
+
+            geofenceLines.push(line);
+        }
+
+        // Mostrar modal para guardar la geocerca
+        showGeofenceModal();
+    }
+
+    function cancelGeofence() {
+        isDrawingGeofence = false;
+        document.getElementById('drawing-controls').classList.remove('active');
+        map.getCanvas().style.cursor = '';
+        map.off('click', addGeofencePoint);
+
+        // Eliminar marcadores y líneas temporales
+        geofenceMarkers.forEach(marker => marker.remove());
+        geofenceLines.forEach(line => line.remove());
+
+        geofenceMarkers = [];
+        geofenceLines = [];
+        currentGeofencePoints = [];
+
+        addDebugLog('Dibujo de geocerca cancelado', 'info');
+    }
+
+    function saveGeofence() {
+        const name = document.getElementById('geofence-name').value || 'Geocerca sin nombre';
+
+        if (currentGeofencePoints.length < 3) {
+            showNotification('Error', 'Se necesitan al menos 3 puntos para crear un polígono', 'error');
+            return;
+        }
+
+        const geofence = {
+            id: 'geofence-' + Date.now(),
+            name: name,
+            points: [...currentGeofencePoints], // Copia de los puntos
+            type: 'polygon'
+        };
+
+        geofences.push(geofence);
+        drawGeofence(geofence);
+
+        // Limpiar dibujo temporal
+        cancelGeofence();
+        hideGeofenceModal();
+
+        addDebugLog(`Geocerca "${name}" creada con ${geofence.points.length} puntos`, 'success');
+        showNotification('Geocerca creada', `"${name}" creada con ${geofence.points.length} puntos`, 'success');
+    }
+
+    function drawGeofence(geofence) {
+        // Asegurarse de que el polígono esté cerrado
+        const coordinates = [...geofence.points];
+        if (coordinates.length > 0) {
+            coordinates.push(coordinates[0]);
+        }
+
+        // Añadir fuente y capa para el polígono
+        const sourceId = `geofence-${geofence.id}`;
+        const layerId = `geofence-layer-${geofence.id}`;
+
+        if (map.getSource(sourceId)) {
+            map.removeLayer(layerId);
+            map.removeSource(sourceId);
+        }
+
+        map.addSource(sourceId, {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'geometry': {
+                    'type': 'Polygon',
+                    'coordinates': [coordinates]
+                },
+                'properties': {
+                    'name': geofence.name
+                }
+            }
+        });
+
+        map.addLayer({
+            'id': layerId,
+            'type': 'fill',
+            'source': sourceId,
+            'layout': {},
+            'paint': {
+                'fill-color': '#0080ff',
+                'fill-opacity': 0.2
+            }
+        });
+
+        map.addLayer({
+            'id': `${layerId}-outline`,
+            'type': 'line',
+            'source': sourceId,
+            'layout': {},
+            'paint': {
+                'line-color': '#0080ff',
+                'line-width': 2
+            }
+        });
+
+        // Añadir popup al hacer clic en el polígono
+        map.on('click', layerId, (e) => {
+            new mapboxgl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(`
+                    <div style="padding: 10px;">
+                        <strong>${geofence.name}</strong><br>
+                        Tipo: Polígono<br>
+                        Puntos: ${geofence.points.length}
+                    </div>
+                `)
+                .addTo(map);
+        });
+
+        // Cambiar cursor al pasar sobre el polígono
+        map.on('mouseenter', layerId, () => {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.on('mouseleave', layerId, () => {
+            map.getCanvas().style.cursor = '';
+        });
+    }
+
+    function checkGeofences(lat, lng) {
+        geofences.forEach(geofence => {
+            if (geofence.type === 'polygon' && isPointInPolygon([lng, lat], geofence.points)) {
+                addDebugLog(`Usuario entró en geocerca "${geofence.name}"`, 'warning');
+                showNotification(
+                    'Entrada en geocerca',
+                    `El usuario entró en "${geofence.name}"`,
+                    'warning'
+                );
+            }
+        });
+    }
+
+    // Algoritmo para determinar si un punto está dentro de un polígono
+    function isPointInPolygon(point, polygon) {
+        const x = point[0], y = point[1];
+        let inside = false;
+
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i][0], yi = polygon[i][1];
+            const xj = polygon[j][0], yj = polygon[j][1];
+
+            const intersect = ((yi > y) !== (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
+    }
+
+    function clearGeofences() {
+        // Eliminar todas las fuentes y capas de geocercas
+        geofences.forEach(geofence => {
+            const sourceId = `geofence-${geofence.id}`;
+            const layerId = `geofence-layer-${geofence.id}`;
+
+            if (map.getSource(sourceId)) {
+                map.removeLayer(layerId);
+                map.removeLayer(`${layerId}-outline`);
+                map.removeSource(sourceId);
+            }
+        });
+
+        geofences = [];
+        addDebugLog('Geocercas eliminadas', 'info');
+        showNotification('Geocercas eliminadas', 'Todas las geocercas han sido eliminadas', 'info');
+    }
+
+    // ========== ACTUALIZACIÓN DEL MAPA ==========
+    function updateMap(lat, lng, data) {
+        addDebugLog(`Actualizando mapa: ${lat}, ${lng}`, 'success');
+
+        if (!map) {
+            initializeMap(lng, lat);
+        }
+
+        if (!marker) {
+            marker = new mapboxgl.Marker({
+                color: '#FF0000',
+                draggable: false
+            })
+            .setLngLat([lng, lat])
+            .setPopup(new mapboxgl.Popup().setHTML(`
+                <div style="padding: 10px; min-width: 200px;">
+                    <strong>Ubicación en Tiempo Real</strong><br><br>
+                    <strong>Usuario:</strong> ${data.idUsuario ? data.idUsuario.substring(0, 8) + '...' : 'Invitado'}<br>
+                    <strong>Dispositivo:</strong> ${data.marcaDispositivo || 'N/A'}<br>
+                    <strong>Batería:</strong> ${data.nivelBateria || 'N/A'}%<br>
+                    <strong>Precisión:</strong> ${data.precision || 'N/A'}m<br>
+                    <strong>Coordenadas:</strong><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+                    <strong>Actualizado:</strong> ${new Date().toLocaleTimeString()}
+                </div>
+            `))
+            .addTo(map);
+
+            addDebugLog('Marcador creado en el mapa', 'success');
+        } else {
+            marker.setLngLat([lng, lat]);
+        }
+
+        if (isFirstLoad) {
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 15,
+                duration: 2000
+            });
+            isFirstLoad = false;
+            addDebugLog('Mapa centrado en ubicación', 'success');
+        }
+    }
+
+    // ========== ACTUALIZAR INFORMACIÓN DEL USUARIO ==========
+    function updateUserInfo(data) {
+        document.getElementById('user-id').textContent = data.idUsuario ?
+            data.idUsuario.substring(0, 8) + '...' : 'Invitado';
+        document.getElementById('device-info').textContent = data.marcaDispositivo || 'N/A';
+
+        const batteryLevel = data.nivelBateria || 0;
+        document.getElementById('battery-level').textContent = `${batteryLevel}%`;
+        const batteryFill = document.getElementById('battery-fill');
+        batteryFill.style.width = `${batteryLevel}%`;
+
+        if (batteryLevel < 20) {
+            batteryFill.className = 'battery-fill danger';
+        } else if (batteryLevel < 50) {
+            batteryFill.className = 'battery-fill warning';
+        } else {
+            batteryFill.className = 'battery-fill';
+        }
+
+        document.getElementById('accuracy').textContent = data.precision ?
+            `${data.precision}m` : 'N/A';
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+    }
+
+    // ========== INICIALIZACIÓN DEL MAPA ==========
+    function initializeMap(lng, lat) {
+        addDebugLog('Inicializando mapa...', 'info');
+
+        map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [lng || -68.119, lat || -16.503],
+            zoom: 10
+        });
+
+        map.on('load', () => {
+            addDebugLog('Mapa cargado correctamente', 'success');
+
+            // Inicializar listener de Firestore
+            setTimeout(() => {
+                initializeFirestoreListener();
+            }, 1000);
+        });
+
+        map.on('click', (e) => {
+            const { lng, lat } = e.lngLat;
+            addDebugLog(`Clic en mapa: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'info');
+        });
+
+        map.on('error', (e) => {
+            addDebugLog(`Error del mapa: ${e.error}`, 'error');
+        });
+    }
+
+    // ========== FUNCIONES UTILITARIAS ==========
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // ========== MANEJO DE EVENTOS ==========
+    document.getElementById('menu-toggle').addEventListener('click', toggleSidebar);
+
+    // Botones de compartir
+    document.getElementById('btn-share-location').addEventListener('click', showShareModal);
+    document.getElementById('btn-generate-qr').addEventListener('click', function() {
+        showShareModal();
+        generateQRCode();
+    });
+
+    // Opciones de compartir
+    document.getElementById('share-whatsapp').addEventListener('click', shareOnWhatsApp);
+    document.getElementById('share-telegram').addEventListener('click', shareOnTelegram);
+    document.getElementById('share-link').addEventListener('click', function() {
+        document.getElementById('link-container').style.display = 'flex';
+        document.getElementById('qr-container').style.display = 'none';
+    });
+    document.getElementById('share-qr').addEventListener('click', generateQRCode);
+    document.getElementById('copy-link').addEventListener('click', function() {
+        copyToClipboard(shareUrl);
+    });
+
+    // Cerrar modales
+    document.getElementById('close-share-modal').addEventListener('click', hideShareModal);
+
+    // Modos de visualización
+    document.getElementById('btn-live').addEventListener('click', function() {
+        setActiveButton('btn-live');
+        currentMode = 'live';
+        clearRoute();
+        addDebugLog('Modo cambiado: Tiempo Real', 'info');
+    });
+
+    document.getElementById('btn-route').addEventListener('click', function() {
+        setActiveButton('btn-route');
+        currentMode = 'route';
+        addDebugLog('Modo cambiado: Visualizar Ruta', 'info');
+    });
+
+    document.getElementById('btn-history').addEventListener('click', function() {
+        setActiveButton('btn-history');
+        currentMode = 'history';
+        addDebugLog('Modo cambiado: Ver Historial', 'info');
+    });
+
+    // Geocercas
+    document.getElementById('btn-add-geofence').addEventListener('click', startDrawingGeofence);
+    document.getElementById('btn-finish-geofence').addEventListener('click', finishGeofence);
+    document.getElementById('btn-cancel-geofence').addEventListener('click', cancelGeofence);
+    document.getElementById('save-geofence').addEventListener('click', saveGeofence);
+    document.getElementById('btn-clear-geofences').addEventListener('click', clearGeofences);
+
+    // Rutas
+    document.getElementById('btn-start-recording').addEventListener('click', startRecordingRoute);
+    document.getElementById('btn-stop-recording').addEventListener('click', stopRecordingRoute);
+    document.getElementById('btn-view-routes').addEventListener('click', viewSavedRoutes);
+    document.getElementById('btn-close-routes').addEventListener('click', function() {
+        document.getElementById('routes-panel').classList.remove('active');
+    });
+
+    // Cerrar modal de geocercas
+    document.getElementById('cancel-geofence').addEventListener('click', function() {
+        hideGeofenceModal();
+        cancelGeofence();
+    });
+    document.getElementById('close-geofence-modal').addEventListener('click', function() {
+        hideGeofenceModal();
+        cancelGeofence();
+    });
+
+    function showGeofenceModal() {
+        const modal = document.getElementById('geofence-modal');
+        modal.style.display = 'flex';
+    }
+
+    function hideGeofenceModal() {
+        const modal = document.getElementById('geofence-modal');
+        modal.style.display = 'none';
+    }
+
+    // Configuración
+    document.getElementById('btn-night-mode').addEventListener('click', function() {
+        isNightMode = !isNightMode;
+        document.body.classList.toggle('night-mode', isNightMode);
+        addDebugLog(`Modo noche ${isNightMode ? 'activado' : 'desactivado'}`, 'info');
+    });
+
+    document.getElementById('btn-fullscreen').addEventListener('click', function() {
+        if (!isFullscreen) {
+            document.documentElement.requestFullscreen();
+            isFullscreen = true;
+        } else {
+            document.exitFullscreen();
+            isFullscreen = false;
+        }
+    });
+
+    document.getElementById('btn-debug').addEventListener('click', function() {
+        const debugPanel = document.getElementById('debug-panel');
+        debugPanel.style.display = debugPanel.style.display === 'block' ? 'none' : 'block';
+    });
+
+    document.getElementById('btn-clear-history').addEventListener('click', clearHistory);
+
+    document.getElementById('btn-clear-logs').addEventListener('click', function() {
+        document.getElementById('debug-logs').innerHTML = '';
+    });
+
+    // Controles flotantes
+    document.getElementById('btn-center-map').addEventListener('click', function() {
+        if (marker) {
+            const lngLat = marker.getLngLat();
+            map.flyTo({
+                center: [lngLat.lng, lngLat.lat],
+                zoom: 15,
+                duration: 1000
+            });
+            addDebugLog('Mapa centrado en ubicación actual', 'info');
+        }
+    });
+
+    document.getElementById('btn-zoom-in').addEventListener('click', function() {
+        map.zoomIn();
+    });
+
+    document.getElementById('btn-zoom-out').addEventListener('click', function() {
+        map.zoomOut();
+    });
+
+    function setActiveButton(activeId) {
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(activeId).classList.add('active');
+    }
+
+    // ========== INICIALIZACIÓN DE LA APLICACIÓN ==========
+    function initializeApp() {
+        addDebugLog('Iniciando aplicación de rastreo avanzado...', 'info');
+        updateStatus('Iniciando...', false);
+
+        // Generar URL de compartir
+        generateShareUrl();
+
+        // Cargar rutas guardadas
+        loadRoutesFromStorage();
+
+        initializeMap();
+    }
+
+    // ========== INICIAR TODO ==========
+    document.addEventListener('DOMContentLoaded', initializeApp);
+</script>
+</body>
+</html>
