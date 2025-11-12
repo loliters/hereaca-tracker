@@ -3,38 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Rastreo Avanzado - HereACA</title>
+    <title>Sistema de Rastreo Avanzado - HereACA Pro</title>
     
     <!-- Dependencias externas -->
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    
     
     <!-- Archivos locales -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/admin.css">
+    <link rel="stylesheet" href="styles/responsive.css">
 </head>
 <body>
-    <!-- Header Superior -->
-    <div id="header">
+    <!-- Header Superior Mejorado -->
+    <header id="header">
         <div class="header-left">
             <button class="menu-toggle" id="menu-toggle">
                 <i class="fas fa-bars"></i>
             </button>
             <div class="logo">
                 <i class="fas fa-map-marker-alt logo-icon"></i>
-                <span>HereACA Tracker</span>
+                <span>HereACA Tracker Pro</span>
             </div>
         </div>
+        
+    
+        
         <div class="header-right">
+            <div class="user-section">
+                <div class="user-info" id="user-info">
+                    <span id="user-display-name">Invitado</span>
+                    <span class="user-role-badge" id="user-role">user</span>
+                </div>
+                <button id="admin-panel-btn" class="btn-admin" style="display: none;">
+                    <i class="fas fa-cog"></i> Admin
+                </button>
+                <button id="auth-btn" class="btn-auth">
+                    <i class="fas fa-user"></i> Iniciar Sesión
+                </button>
+            </div>
             <div class="status-indicator">
                 <div class="status-dot connecting" id="status-dot"></div>
                 <span id="status-text">Conectando...</span>
             </div>
         </div>
-    </div>
+    </header>
 
     <!-- Sidebar / Menú Hamburguesa -->
     <div id="sidebar">
@@ -77,18 +97,49 @@
             </div>
         </div>
 
-        <!-- Sección de Compartir Ubicación -->
+        <!-- Sección de Rastreo Avanzado -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                <i class="fas fa-location-arrow"></i>
+                Rastreo Avanzado
+            </div>
+            <div class="btn-group">
+                <button class="btn" id="btn-start-live-tracking">
+                    <i class="fas fa-play-circle"></i>
+                    <div>
+                        <div>Iniciar Rastreo</div>
+                        <small>Trazado en tiempo real</small>
+                    </div>
+                </button>
+                <button class="btn" id="btn-add-waypoint">
+                    <i class="fas fa-map-pin"></i>
+                    <div>
+                        <div>Añadir Waypoint</div>
+                        <small>Punto de referencia</small>
+                    </div>
+                </button>
+                <button class="btn" id="btn-set-destination">
+                    <i class="fas fa-flag-checkered"></i>
+                    <div>
+                        <div>Destino Final</div>
+                        <small>Establecer destino</small>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sección de Compartir Ubicación Mejorada -->
         <div class="sidebar-section">
             <div class="section-title">
                 <i class="fas fa-share-alt"></i>
-                Compartir Mi Ubicación
+                Compartir Ubicación
             </div>
             <div class="btn-group">
                 <button class="btn" id="btn-share-location">
                     <i class="fas fa-share"></i>
                     <div>
                         <div>Compartir Enlace</div>
-                        <small>Generar enlace de rastreo</small>
+                        <small>Con mensaje personalizado</small>
                     </div>
                 </button>
                 <button class="btn" id="btn-generate-qr">
@@ -96,6 +147,13 @@
                     <div>
                         <div>Código QR</div>
                         <small>Para compartir fácilmente</small>
+                    </div>
+                </button>
+                <button class="btn btn-emergency" id="btn-emergency-share">
+                    <i class="fas fa-bell"></i>
+                    <div>
+                        <div>Emergencia</div>
+                        <small>Compartir ubicación crítica</small>
                     </div>
                 </button>
             </div>
@@ -146,6 +204,13 @@
                         <small>Dibujar polígono en el mapa</small>
                     </div>
                 </button>
+                <button class="btn" id="btn-manage-geofences">
+                    <i class="fas fa-edit"></i>
+                    <div>
+                        <div>Gestionar Geocercas</div>
+                        <small>Ver y editar existentes</small>
+                    </div>
+                </button>
                 <button class="btn" id="btn-clear-geofences">
                     <i class="fas fa-trash"></i>
                     <div>
@@ -182,6 +247,13 @@
                     <div>
                         <div>Ver Rutas Guardadas</div>
                         <small>Mostrar rutas anteriores</small>
+                    </div>
+                </button>
+                <button class="btn" id="btn-export-routes">
+                    <i class="fas fa-download"></i>
+                    <div>
+                        <div>Exportar Rutas</div>
+                        <small>GPX, KML, GeoJSON</small>
                     </div>
                 </button>
             </div>
@@ -233,18 +305,30 @@
         </div>
     </div>
 
-    <!-- Mapa -->
-    <div id="map"></div>
+    <!-- Contenido Principal -->
+    <main id="main-content">
+        <!-- Mapa -->
+        <div id="map"></div>
+        
+        <!-- Panel de Administración (oculto por defecto) -->
+        <div id="admin-panel" class="admin-panel" style="display: none;">
+            <!-- El contenido se cargará dinámicamente -->
+        </div>
+    </main>
 
-    <!-- Controles de dibujo de geocercas -->
+    <!-- Controles de Dibujo de Geocercas -->
     <div class="drawing-controls" id="drawing-controls">
-        <div style="font-weight: 600; margin-bottom: 10px; color: var(--dark-color);">Dibujando Geocerca</div>
+        <div class="header">
+            <i class="fas fa-draw-polygon"></i>
+            <span>Dibujando Geocerca</span>
+        </div>
+        
         <div class="btn-group">
-            <button class="btn" id="btn-finish-geofence">
+            <button class="btn btn-finish" id="btn-finish-geofence">
                 <i class="fas fa-check"></i>
                 <div>
                     <div>Finalizar Geocerca</div>
-                    <small>Guardar polígono</small>
+                    <small>Guardar polígono actual</small>
                 </div>
             </button>
             <button class="btn" id="btn-cancel-geofence">
@@ -255,8 +339,56 @@
                 </div>
             </button>
         </div>
-        <div class="drawing-info">
-            Haz clic en el mapa para añadir puntos al polígono
+        
+        <div class="geofence-point-info">
+            <div class="point-counter" id="point-counter">Puntos: 0/7</div>
+            <div class="min-max-info">
+                <div>Mínimo: 3 puntos • Máximo: 7 puntos</div>
+                <div>Haz clic cerca del primer punto para cerrar</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controles de Edición de Geocercas -->
+    <div class="edit-controls" id="edit-controls">
+        <div class="header">
+            <i class="fas fa-edit"></i>
+            <span>Editando Geocerca</span>
+        </div>
+        
+        <div class="edit-info">
+            <div id="edit-point-counter" class="point-counter">Puntos: 0</div>
+            <div class="edit-instructions">
+                <div>• Arrastra puntos para mover</div>
+                <div>• Doble clic para eliminar punto</div>
+                <div>• Botón "+" para añadir puntos</div>
+            </div>
+        </div>
+        
+        <div class="btn-group">
+            <button class="btn btn-success" id="btn-add-point">
+                <i class="fas fa-plus"></i>
+                <div>
+                    <div>Añadir Punto</div>
+                    <small>Agregar nuevo punto</small>
+                </div>
+            </button>
+            
+            <button class="btn btn-primary" id="btn-save-edit">
+                <i class="fas fa-save"></i>
+                <div>
+                    <div>Guardar Cambios</div>
+                    <small>Guardar modificaciones</small>
+                </div>
+            </button>
+            
+            <button class="btn btn-secondary" id="btn-cancel-edit">
+                <i class="fas fa-times"></i>
+                <div>
+                    <div>Cancelar</div>
+                    <small>Descartar cambios</small>
+                </div>
+            </button>
         </div>
     </div>
 
@@ -271,6 +403,17 @@
         </button>
     </div>
 
+    <!-- Panel de Waypoints -->
+    <div class="waypoints-panel" id="waypoints-panel">
+        <div style="font-weight: 600; margin-bottom: 15px; color: var(--dark-color);">Waypoints</div>
+        <div id="waypoints-list">
+            <!-- Los waypoints se insertarán aquí -->
+        </div>
+        <button class="btn" id="btn-close-waypoints" style="margin-top: 15px; width: 100%;">
+            <i class="fas fa-times"></i> Cerrar
+        </button>
+    </div>
+
     <!-- Controles Flotantes -->
     <div class="floating-controls">
         <button class="floating-btn" id="btn-center-map" title="Centrar en ubicación">
@@ -281,6 +424,9 @@
         </button>
         <button class="floating-btn" id="btn-zoom-out" title="Alejar">
             <i class="fas fa-minus"></i>
+        </button>
+        <button class="floating-btn" id="btn-export-map" title="Exportar Mapa">
+            <i class="fas fa-download"></i>
         </button>
     </div>
 
@@ -314,23 +460,84 @@
     </div>
 
     <!-- Modal de confirmación para crear geocerca -->
-    <div id="confirmation-modal" class="confirmation-modal">
-        <div class="confirmation-content">
-            <h3 style="margin-bottom: 15px; color: var(--dark-color);">¿Crear geocerca?</h3>
-            <p style="margin-bottom: 20px; color: #666;">¿Deseas guardar esta geocerca con <span id="point-count">0</span> puntos?</p>
-            <div class="confirmation-buttons">
+    <!-- Modal de confirmación para crear geocerca -->
+    <div id="confirmation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">¿Crear geocerca?</div>
+                <button class="close-modal" id="close-confirmation-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>¿Deseas guardar esta geocerca con <span id="point-count">0</span> puntos?</p>
+                <div class="geofence-preview" id="geofence-preview">
+                    <!-- Aquí se mostrará información de la geocerca -->
+                </div>
+            </div>
+            <div class="form-actions">
                 <button class="btn-secondary" id="confirm-cancel">Cancelar</button>
                 <button class="btn-primary" id="confirm-save">Guardar</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal para compartir ubicación -->
+    <!-- Modal para compartir ubicación mejorado -->
     <div id="share-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">Compartir Mi Ubicación</div>
                 <button class="close-modal" id="close-share-modal">&times;</button>
+            </div>
+
+            <!-- Opción de propósito -->
+            <div class="purpose-section">
+                <label class="consent-label">
+                    <input type="checkbox" id="tracking-consent">
+                    <span class="checkmark"></span>
+                    ¿Es para rastrear a una persona?
+                </label>
+                <small class="consent-warning">
+                    Se requiere consentimiento explícito para rastrear personas
+                </small>
+            </div>
+
+            <!-- Botón de emergencia -->
+            <div class="emergency-section">
+                <button class="emergency-btn" id="emergency-share">
+                    <i class="fas fa-bell"></i>
+                    Compartir en Emergencia
+                </button>
+                <small>Comparte ubicación con contactos de emergencia</small>
+            </div>
+
+            <!-- Enlace temporal -->
+            <div class="temporal-section">
+                <h4>Enlace Temporal</h4>
+                <div class="link-options">
+                    <select id="link-duration">
+                        <option value="1h">1 Hora</option>
+                        <option value="6h">6 Horas</option>
+                        <option value="24h">24 Horas</option>
+                        <option value="7d">7 Días</option>
+                    </select>
+                    <button id="generate-temporal-link">Generar Enlace</button>
+                </div>
+                <div id="temporal-link-container" style="display: none;">
+                    <input type="text" id="temporal-link" readonly>
+                    <button id="copy-temporal-link">Copiar</button>
+                </div>
+            </div>
+
+            <!-- Mensaje personalizado con GitHub -->
+            <div class="message-section">
+                <h4>Mensaje Personalizado</h4>
+                <textarea id="share-message" placeholder="Estoy compartiendo mi ubicación en tiempo real. Puedes verla aquí:">
+¡Hola! Estoy compartiendo mi ubicación en tiempo real.
+
+Coordenadas: [se generarán automáticamente]
+Enlace: [se generará automáticamente]
+
+Proyecto open-source: https://github.com/tu-usuario/hereaca-tracker
+                </textarea>
             </div>
 
             <div class="share-options">
@@ -381,9 +588,112 @@
         </div>
     </div>
 
+    <!-- Modal de Autenticación -->
+<div id="auth-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Iniciar Sesión</div>
+            <button class="close-modal" id="close-auth-modal">&times;</button>
+        </div>
+        <div class="auth-form">
+            <div class="form-group">
+                <label class="form-label" for="auth-email">Email</label>
+                <input type="email" id="auth-email" class="form-input" placeholder="tu@email.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="auth-password">Contraseña</label>
+                <input type="password" id="auth-password" class="form-input" placeholder="Tu contraseña">
+            </div>
+            
+            <!-- Campo oculto para el token -->
+            <input type="hidden" id="turnstile-token">
+            
+            <!-- Widget de Turnstile -->
+            <div class="turnstile-container">
+                <div id="turnstile-widget"></div>
+            </div>
+            
+            <div class="form-actions">
+                <button class="btn-secondary" id="cancel-auth">Cancelar</button>
+                <button class="btn-primary" id="login-btn">Iniciar Sesión</button>
+            </div>
+            
+            <div class="auth-links">
+                <a href="#" id="register-link">¿No tienes cuenta? Regístrate</a>
+                <a href="#" id="forgot-password-link">¿Olvidaste tu contraseña?</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    <!-- Modal de Exportación -->
+    <div id="export-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Exportar Datos</div>
+                <button class="close-modal" id="close-export-modal">&times;</button>
+            </div>
+            <div class="export-options">
+                <div class="export-option" data-format="gpx">
+                    <i class="fas fa-route"></i>
+                    <div>
+                        <div>Formato GPX</div>
+                        <small>Compatible con GPS y apps de navegación</small>
+                    </div>
+                </div>
+                <div class="export-option" data-format="kml">
+                    <i class="fas fa-globe"></i>
+                    <div>
+                        <div>Formato KML</div>
+                        <small>Para Google Earth y Google Maps</small>
+                    </div>
+                </div>
+                <div class="export-option" data-format="geojson">
+                    <i class="fas fa-code"></i>
+                    <div>
+                        <div>Formato GeoJSON</div>
+                        <small>Para desarrollo y análisis</small>
+                    </div>
+                </div>
+                <div class="export-option" data-format="png">
+                    <i class="fas fa-image"></i>
+                    <div>
+                        <div>Captura de Mapa</div>
+                        <small>Imagen PNG del mapa actual</small>
+                    </div>
+                </div>
+            </div>
+            <div class="export-destination">
+                <h4>Destino de Exportación</h4>
+                <div class="destination-options">
+                    <button class="btn" id="export-download">
+                        <i class="fas fa-download"></i> Descargar
+                    </button>
+                    <button class="btn" id="export-drive">
+                        <i class="fab fa-google-drive"></i> Google Drive
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Contenedor de notificaciones -->
     <div class="notification-container" id="notification-container"></div>
 
+    <!-- Scripts principales -->
     <script src="app.js"></script>
+    
+    <!-- Servicios -->
+    <script src="services/firebase.js"></script>
+    <script src="services/auth.js"></script>
+    <script src="services/tracking.js"></script>
+    <script src="services/export.js"></script>
+    <script src="services/notifications.js"></script>
+    <script src="services/turnstile.js"></script>
+    
+    <!-- Componentes -->
+    <script src="components/admin/Dashboard.js"></script>
+    <script src="components/sharing/ShareModal.js"></script>
 </body>
 </html>
